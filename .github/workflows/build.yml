@@ -38,3 +38,22 @@ jobs:
         run: python3 build-system/Make/Make.py generateProject --configurationPath=build-system/config.json || true
 
       - name: Setup signing
+        run: |
+          mkdir -p signing
+          echo "${{ secrets.APPLE_CERT_P12_BASE64 }}" | base64 -d > signing/certificate.p12
+          echo "${{ secrets.APPLE_PROVISION_BASE64 }}" | base64 -d > signing/provision.mobileprovision
+          security create-keychain -p password signing.keychain
+          security unlock-keychain -p password signing.keychain
+          security import signing/certificate.p12 -k signing.keychain -P "${{ secrets.APPLE_CERT_PASSWORD }}" -T /usr/bin/codesign
+
+      - name: Build with Bazel
+        run: |
+          ./bazel clean --expunge || true
+          ./bazel fetch //... || true
+          ./bazel build //Telegram:Telegram --compilation_mode=opt --apple_platform_type=ios --verbose_failures --sandbox_debug
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ghostgram-IPA
+          path: bazel-bin/Telegram/Telegram.ipa
