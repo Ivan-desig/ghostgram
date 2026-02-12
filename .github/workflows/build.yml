@@ -19,27 +19,26 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p build build.keychain
           
-          # Лечим и импортируем сертификат
+          # Лечим и импортируем сертификат (пароль 1)
           openssl pkcs12 -in cert.p12 -nodes -passin pass:1 -out temp_cert.pem
           openssl pkcs12 -export -in temp_cert.pem -out cert_fixed.p12 -passout pass:1
           security import cert_fixed.p12 -k build.keychain -P 1 -A -T /usr/bin/codesign
 
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k build build.keychain
           
-          # КОРРЕКТНОЕ РАЗМЕЩЕНИЕ ПРОФИЛЯ
-          # 1. Системный путь
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-          
-          # 2. Путь, который требует скрипт Telegram (исправляем ошибку FileNotFoundError)
+          # РЕШАЕМ FileNotFoundError: создаем структуру папок, которую требует скрипт
           mkdir -p build-system/fake-codesigning/profiles
           cp profile.mobileprovision build-system/fake-codesigning/profiles/
+          
+          # И для системы тоже копируем
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
       - name: Build App
         run: |
           BUILD_NUMBER=$(git rev-list --count HEAD)
           
-          # Запускаем сборку с обходом версии Xcode
+          # Запускаем сборку. Порядок флагов важен!
           python3 -u build-system/Make/Make.py \
             --overrideXcodeVersion \
             build \
