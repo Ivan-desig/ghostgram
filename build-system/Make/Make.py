@@ -462,6 +462,7 @@ def resolve_codesigning(arguments, base_path, build_configuration, provisioning_
 
     workdir_path = '{}/build-input/configuration-repository-workdir'.format(base_path)
     os.makedirs(workdir_path, exist_ok=True)
+    if profile_source != "embedded":
     profile_source.load_data(working_dir=workdir_path)
 
     if provisioning_profiles_path is not None:
