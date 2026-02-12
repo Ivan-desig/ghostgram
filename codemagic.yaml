@@ -8,7 +8,6 @@ workflows:
       groups:
         - apple_signing
       vars:
-        CONFIG_PATH: build-system/config.json  # твой шаблон, поменян на правильный
         BAZEL_VERSION: 6.5.0
         BAZEL_DISK_CACHE: /tmp/bazel-disk-cache
     scripts:
@@ -23,12 +22,10 @@ workflows:
       - name: Init submodules
         script: git submodule update --init --recursive || true
 
-      - name: Generate Xcode project
-        script: python3 build-system/Make/Make.py generateProject --configurationPath=$CONFIG_PATH || true
-
       - name: Build with Bazel
         script: |
           ./bazel clean --expunge || true
+          ./bazel fetch //... || true
           ./bazel build //Telegram:Telegram \
             --compilation_mode=opt \
             --apple_platform_type=ios \
