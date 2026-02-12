@@ -9,7 +9,7 @@ workflows:
         - apple_signing
       vars:
         CONFIG_PATH: build-system/template_minimal_development_configuration.json  # поменяй, если файл называется иначе (проверь в репо)
-        BAZEL_VERSION: 6.5.0
+        BAZEL_VERSION: 8.6.0rc1
         BAZEL_DISK_CACHE: /tmp/bazel-disk-cache
     scripts:
       - name: Install Bazel
