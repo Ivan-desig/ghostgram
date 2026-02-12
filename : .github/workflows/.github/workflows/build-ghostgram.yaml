@@ -1,0 +1,36 @@
+name: Build Ghostgram IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # чтобы запускать вручную
+
+jobs:
+  build:
+    runs-on: macos-latest  # виртуальный Mac в GitHub
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive  # init submodules автоматом
+
+      - name: Install Bazel
+        run: |
+          curl -LO https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-darwin-arm64
+          chmod +x bazel-6.5.0-darwin-arm64
+          mv bazel-6.5.0-darwin-arm64 bazel
+          ./bazel version
+
+      - name: Generate Xcode project
+        run: python3 build-system/Make/Make.py generateProject --configurationPath=build-system/config.json || true
+
+      - name: Build with Bazel
+        run: |
+          ./bazel clean --expunge || true
+          ./bazel build //Telegram:Telegram --compilation_mode=opt --apple_platform_type=ios --verbose_failures
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ghostgram-IPA
+          path: bazel-bin/Telegram/Telegram.ipa  # путь к IPA
