@@ -1,35 +1,43 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+workflows:
+  ghostgram-ios-build:
+    name: Ghostgram iOS Build
+    instance_type: mac_mini_m1
+    max_build_duration: 120
+    environment:
+      xcode: latest
+      groups:
+        - apple_signing
+      vars:
+        CONFIG_PATH: build-system/template_minimal_development_configuration.json  # поменяй, если файл другой (поиск в репо "template")
+        BAZEL_VERSION: 6.5.0
+        BAZEL_DISK_CACHE: /tmp/bazel-disk-cache
+    scripts:
+      - name: Install Bazel
+        script: |
+          curl -LO https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-arm64
+          chmod +x bazel-$BAZEL_VERSION-darwin-arm64
+          mv bazel-$BAZEL_VERSION-darwin-arm64 bazel
+          ./bazel version
+          mkdir -p $BAZEL_DISK_CACHE
 
-http_archive(
-    name = "build_bazel_rules_apple",
-    sha256 = "fad623b4d0dbe7883fffc95a3275eaabfd13bd9336fca6788cb40bee96e5f131",
-    url = "https://github.com/bazelbuild/rules_apple/releases/download/3.13.0/rules_apple.3.13.0.tar.gz",
-)
+      - name: Init submodules
+        script: git submodule update --init --recursive || true
 
-http_archive(
-    name = "build_bazel_rules_swift",
-    sha256 = "03a5c2a93398f2fc4d6ddfb76cf80cd957483ec286d34f50cc22cda002aab445",
-    url = "https://github.com/bazelbuild/rules_swift/releases/download/3.4.2/rules_swift.3.4.2.tar.gz",
-)
+      - name: Generate Xcode project
+        script: python3 build-system/Make/Make.py generateProject --configurationPath=$CONFIG_PATH || true
 
-http_archive(
-    name = "build_bazel_apple_support",
-    sha256 = "1ae6fcf983cff3edab717636f91ad0efff2e5ba75607fdddddfd6ad0dbdfaf10",
-    url = "https://github.com/bazelbuild/apple_support/releases/download/2.2.0/apple_support.2.2.0.tar.gz",
-)
+      - name: Build with Bazel
+        script: |
+          ./bazel clean --expunge || true
+          ./bazel build //Telegram:Telegram \
+            --compilation_mode=opt \
+            --apple_platform_type=ios \
+            --disk_cache=$BAZEL_DISK_CACHE \
+            --verbose_failures \
+            --sandbox_debug
 
-load("@build_bazel_rules_apple//apple:repositories.bzl", "apple_rules_dependencies")
-
-apple_rules_dependencies()
-
-load("@build_bazel_rules_swift//swift:repositories.bzl", "swift_rules_dependencies")
-
-swift_rules_dependencies()
-
-load("@build_bazel_rules_swift//swift:extras.bzl", "swift_rules_extras")
-
-swift_rules_extras()
-
-load("@build_bazel_apple_support//lib:repositories.bzl", "apple_support_dependencies")
-
-apple_support_dependencies()
+    artifacts:
+      - bazel-bin/Telegram/Telegram.ipa
+      - bazel-bin/**/*
+      - build/**/*
+      - "**/*.ipa"
