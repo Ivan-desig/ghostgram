@@ -33,13 +33,14 @@ jobs:
           # Генерируем номер билда
           BUILD_NUMBER=$(git rev-list --count HEAD)
           
+          # ВАЖНО: --overrideXcodeVersion стоит ДО команды build
           python3 -u build-system/Make/Make.py \
+            --overrideXcodeVersion \
             build \
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
-            --buildNumber=$BUILD_NUMBER \
-            --overrideXcodeVersion
+            --buildNumber=$BUILD_NUMBER
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
