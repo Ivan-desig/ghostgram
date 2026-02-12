@@ -10,7 +10,7 @@ workflows:
       vars:
         CONFIG_PATH: build-system/template_minimal_development_configuration.json
         BAZEL_VERSION: 6.5.0
-        BAZEL_CACHE_DIR: $HOME/telegram-bazel-cache
+        BAZEL_DISK_CACHE: /tmp/bazel-disk-cache
     scripts:
       - name: Install Bazel
         script: |
@@ -18,7 +18,7 @@ workflows:
           chmod +x bazel-$BAZEL_VERSION-darwin-arm64
           mv bazel-$BAZEL_VERSION-darwin-arm64 bazel
           ./bazel version
-          echo "Bazel installed"
+          mkdir -p $BAZEL_DISK_CACHE
 
       - name: Init submodules (ignore errors)
         script: git submodule update --init --recursive || true
@@ -31,7 +31,9 @@ workflows:
           ./bazel build //Telegram:Telegram \
             --compilation_mode=opt \
             --apple_platform_type=ios \
-            --cache_dir=$BAZEL_CACHE_DIR
+            --disk_cache=$BAZEL_DISK_CACHE \
+            --verbose_failures \
+            --sandbox_debug
 
     artifacts:
       - bazel-bin/Telegram/Telegram.ipa
