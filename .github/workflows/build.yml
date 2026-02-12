@@ -15,16 +15,12 @@ jobs:
 
       - name: Install Certificate
         run: |
-          # Декодируем сертификат и профиль
-          echo "${{ secrets.P12_BASE64 }}" | base64 --decode > cert.p12
-          echo "${{ secrets.MOBILEPROVISION_BASE64 }}" | base64 --decode > profile.mobileprovision
-          
-          # Настройка связки ключей
+          # Создаем связку ключей
           security create-keychain -p build build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p build build.keychain
           
-          # ИМПОРТ: Я вставил пароль "1" прямо сюда
+          # Импортируем файл, который ты загрузил в репозиторий
           security import cert.p12 -k build.keychain -P 1 -A -T /usr/bin/codesign
           
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k build build.keychain
