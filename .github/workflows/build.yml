@@ -1,4 +1,4 @@
-name: Build Signed Ghostgram (Universal Patch)
+name: Build Ghostgram IPA
 
 on:
   workflow_dispatch:
@@ -6,77 +6,54 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
-          fetch-depth: '0'
+          submodules: recursive
 
-      - name: Setup Signing
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Bazel
         run: |
-          security create-keychain -p build build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p build build.keychain
-          # Импорт и исправление сертификата
-          openssl pkcs12 -in cert.p12 -nodes -passin pass:1 -out temp_cert.pem
-          openssl pkcs12 -export -in temp_cert.pem -out cert_fixed.p12 -passout pass:1
-          security import cert_fixed.p12 -k build.keychain -P 1 -A -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k build build.keychain
-          # Раскладка профилей
-          mkdir -p build-system/fake-codesigning/profiles
-          cp profile.mobileprovision build-system/fake-codesigning/profiles/
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          curl -LO https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-darwin-arm64
+          chmod +x bazel-6.5.0-darwin-arm64
+          mv bazel-6.5.0-darwin-arm64 bazel
+          ./bazel version
 
-      - name: God Mode Patch
+      - name: Fix Make.py Indentation
         run: |
-          # 1. Сносим ограничения в entitlements
-          find . -name "*.entitlements" -exec plutil -remove "aps-environment" {} \; || true
-          
-          # 2. ПОЛНАЯ ПОДМЕНА BuildConfiguration.py (Универсальный объект)
-          cat <<EOF > build-system/Make/BuildConfiguration.py
-          class UniversalDummy:
-              def __init__(self, *args, **kwargs):
-                  self.directory_path = "build-system/fake-codesigning"
-                  self.team_id = "DUMMY"
-                  self.bundle_id = "org.telegram.messenger"
-                  self.api_id = "12345"
-                  self.api_hash = "abcdef"
-                  self.arguments = args[0] if args else None
-              def __getattr__(self, name): 
-                  # Если скрипт ищет любое поле (team_id, api_id и т.д.), возвращаем заглушку
-                  return "DUMMY"
-              def copy_profiles_to_destination(self, *args, **kwargs): return None
+          sed -i '' -e '/profile_source.load_data/ i\ 
+          if profile_source != "embedded":' -e 's/profile_source.load_data/if profile_source != "embedded":\n    profile_source.load_data/g' build-system/Make/Make.py
 
-          # Подменяем все классы и функции на наш универсальный объект
-          CodesigningSource = UniversalDummy
-          GitCodesigningSource = UniversalDummy
-          XcodeManagedCodesigningSource = UniversalDummy
-          DirectoryCodesigningSource = UniversalDummy
-          BuildConfiguration = UniversalDummy
-
-          def build_configuration_from_json(*args, **kwargs): return UniversalDummy()
-          def get_aps_environment(*args, **kwargs): return 'production'
-          def resolve_codesigning(*args, **kwargs): return UniversalDummy()
-          EOF
-
-          # 3. Принудительный обход проверки Xcode
-          sed -i '' 's/if required_xcode_version != current_xcode_version:/if False:/g' build-system/Make/Make.py || true
-
-      - name: Build App
+      - name: Insert API keys
         run: |
-          BUILD_NUMBER=$(git rev-list --count HEAD)
-          python3 -u build-system/Make/Make.py \
-            --overrideXcodeVersion \
-            build \
-            --configurationPath="build-system/appstore-configuration.json" \
-            --codesigningInformationPath=build-system/fake-codesigning \
-            --configuration=release_arm64 \
-            --buildNumber=$BUILD_NUMBER
+          sed -i '' "s/\#define API_ID.*/\#define API_ID ${{ secrets.API_ID }}/" Telegram/Telegram-Bridging-Header.h
+          sed -i '' "s/\#define API_HASH.*/\#define API_HASH \"${{ secrets.API_HASH }}\"/" Telegram/Telegram-Bridging-Header.h
 
-      - name: Upload Artifact
+      - name: Generate Xcode project
+        run: python3 build-system/Make/Make.py generateProject --configurationPath=build-system/config.json || true
+
+      - name: Setup signing
+        run: |
+          mkdir -p signing
+          echo "${{ secrets.APPLE_CERT_P12_BASE64 }}" | base64 -d > signing/certificate.p12
+          echo "${{ secrets.APPLE_PROVISION_BASE64 }}" | base64 -d > signing/provision.mobileprovision
+          security create-keychain -p password signing.keychain
+          security unlock-keychain -p password signing.keychain
+          security import signing/certificate.p12 -k signing.keychain -P "${{ secrets.APPLE_CERT_PASSWORD }}" -T /usr/bin/codesign
+
+      - name: Build with Bazel
+        run: |
+          ./bazel clean --expunge || true
+          ./bazel fetch //... || true
+          ./bazel build //Telegram:Telegram --compilation_mode=opt --apple_platform_type=ios --verbose_failures --sandbox_debug
+
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Signed-Ghostgram
-          path: build/artifacts/Telegram.ipa
+          name: Ghostgram-IPA
+          path: bazel-bin/Telegram/Telegram.ipa
