@@ -8,7 +8,7 @@ workflows:
       groups:
         - apple_signing
       vars:
-        CONFIG_PATH: build-system/template_minimal_development_configuration.json  # поменяй, если файл другой (поиск в репо "template")
+        CONFIG_PATH: build-system/config.json  # твой шаблон, поменян на правильный
         BAZEL_VERSION: 6.5.0
         BAZEL_DISK_CACHE: /tmp/bazel-disk-cache
     scripts:
