@@ -1,4 +1,4 @@
-name: Build Signed Ghostgram (Corrected Logic)
+name: Build Signed Ghostgram (Final Logic Fix)
 
 on:
   workflow_dispatch:
@@ -29,30 +29,43 @@ jobs:
 
       - name: Ultimate Nuke Patch
         run: |
-          # 1. Сносим пуши в entitlements
+          # 1. Сносим пуши
           find . -name "*.entitlements" -exec plutil -remove "aps-environment" {} \; || true
           
-          # 2. ПОЛНАЯ ЗАГЛУШКА (со всеми нужными именами для импорта)
+          # 2. ПОЛНАЯ ЭМУЛЯЦИЯ ОБЪЕКТОВ (Чтобы не было AttributeError)
           cat <<EOF > build-system/Make/BuildConfiguration.py
           class CodesigningSource: pass
           class GitCodesigningSource: pass
+          class XcodeManagedCodesigningSource: pass
+
           class DirectoryCodesigningSource:
               def __init__(self, directory_path):
                   self.directory_path = directory_path
                   self.team_id = "DUMMY"
                   self.bundle_id = "org.telegram.messenger"
               def copy_profiles_to_destination(self, path): return None
-          class XcodeManagedCodesigningSource: pass
-          class BuildConfiguration:
-              def __init__(self, arguments): self.arguments = arguments
 
-          def build_configuration_from_json(path): return {}
+          class BuildConfiguration:
+              def __init__(self, arguments):
+                  self.arguments = arguments
+                  self.team_id = "DUMMY"
+                  self.bundle_id = "org.telegram.messenger"
+
+          def build_configuration_from_json(path):
+              # Возвращаем объект класса, а не словарь (фикс ошибки на IMG_0560)
+              class DummyConfig:
+                  def __init__(self):
+                      self.team_id = "DUMMY"
+                      self.bundle_id = "org.telegram.messenger"
+              return DummyConfig()
+
           def get_aps_environment(entitlements): return 'production'
+          
           def resolve_codesigning(arguments, **kwargs):
               return DirectoryCodesigningSource("build-system/fake-codesigning")
           EOF
 
-          # 3. Игнор Xcode версии (убираем проверку физически)
+          # 3. Принудительный пропуск проверки Xcode
           sed -i '' 's/if required_xcode_version != current_xcode_version:/if False:/g' build-system/Make/Make.py || true
 
       - name: Build App
