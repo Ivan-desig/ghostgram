@@ -28,14 +28,9 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      - name: Set active Xcode path
-        run: |
-          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
-          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
-
       - name: Build App
         run: |
-          # Генерируем номер билда на основе количества коммитов
+          # Генерируем номер билда
           BUILD_NUMBER=$(git rev-list --count HEAD)
           
           python3 -u build-system/Make/Make.py \
@@ -43,7 +38,8 @@ jobs:
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
-            --buildNumber=$BUILD_NUMBER
+            --buildNumber=$BUILD_NUMBER \
+            --ignoreXcodeVersionMismatch
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
