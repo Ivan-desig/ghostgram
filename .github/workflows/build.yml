@@ -19,30 +19,33 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p build build.keychain
           
-          # Лечим сертификат
+          # Лечим и импортируем сертификат
           openssl pkcs12 -in cert.p12 -nodes -passin pass:1 -out temp_cert.pem
           openssl pkcs12 -export -in temp_cert.pem -out cert_fixed.p12 -passout pass:1
           security import cert_fixed.p12 -k build.keychain -P 1 -A -T /usr/bin/codesign
-
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k build build.keychain
           
-          # Раскладываем профили по папкам
+          # Копируем профили
           mkdir -p build-system/fake-codesigning/profiles
           cp profile.mobileprovision build-system/fake-codesigning/profiles/
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      - name: Strip Push Notifications
+      - name: Nuke Push Notifications
         run: |
-          # Удаляем упоминание Push-уведомлений из всех файлов конфигурации
-          find . -name "*.entitlements" -exec plutil -remove aps-environment {} \; || true
-          find . -name "*.entitlements" -exec plutil -remove com.apple.developer.aps-environment {} \; || true
+          # 1. Удаляем aps-environment из всех файлов .entitlements и .plist
+          find . -name "*.entitlements" -exec plutil -remove "aps-environment" {} \; || true
+          find . -name "*.plist" -exec plutil -remove "aps-environment" {} \; || true
           
-          # Чистим JSON конфигурацию, если она требует пуши
+          # 2. Чистим основной файл конфигурации сборки
           if [ -f "build-system/appstore-configuration.json" ]; then
-            sed -i '' 's/"aps-environment": "production"//g' build-system/appstore-configuration.json || true
-            sed -i '' 's/"aps-environment": "development"//g' build-system/appstore-configuration.json || true
+            # Удаляем строку с aps-environment, какой бы она ни была
+            sed -i '' '/aps-environment/d' build-system/appstore-configuration.json || true
           fi
+          
+          # 3. ПАТЧ СКРИПТА СБОРКИ (самое важное)
+          # Мы заставляем Python-скрипт игнорировать отсутствие пушей в профиле
+          sed -i '' "s/raise Exception('Could not find a valid aps-environment/print('SKIPPING: Could not find a valid aps-environment/g" build-system/Make/BuildConfiguration.py || true
 
       - name: Build App
         run: |
@@ -55,9 +58,4 @@ jobs:
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
             --buildNumber=$BUILD_NUMBER
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: Signed-Ghostgram
-          path: build/artifacts/Telegram.ipa
+            
