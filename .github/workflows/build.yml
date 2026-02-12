@@ -25,15 +25,21 @@ jobs:
           security import cert_fixed.p12 -k build.keychain -P 1 -A -T /usr/bin/codesign
 
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k build build.keychain
+          
+          # КОРРЕКТНОЕ РАЗМЕЩЕНИЕ ПРОФИЛЯ
+          # 1. Системный путь
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          
+          # 2. Путь, который требует скрипт Telegram (исправляем ошибку FileNotFoundError)
+          mkdir -p build-system/fake-codesigning/profiles
+          cp profile.mobileprovision build-system/fake-codesigning/profiles/
 
       - name: Build App
         run: |
-          # Генерируем номер билда
           BUILD_NUMBER=$(git rev-list --count HEAD)
           
-          # ВАЖНО: --overrideXcodeVersion стоит ДО команды build
+          # Запускаем сборку с обходом версии Xcode
           python3 -u build-system/Make/Make.py \
             --overrideXcodeVersion \
             build \
