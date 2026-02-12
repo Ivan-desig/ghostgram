@@ -8,8 +8,8 @@ workflows:
       groups:
         - apple_signing
       vars:
-        CONFIG_PATH: build-system/template_minimal_development_configuration.json  # поменяй, если файл называется иначе (проверь в репо)
-        BAZEL_VERSION: 8.6.0rc1
+        CONFIG_PATH: build-system/template_minimal_development_configuration.json  # поменяй, если файл другой (поиск в репо "template")
+        BAZEL_VERSION: 6.5.0
         BAZEL_DISK_CACHE: /tmp/bazel-disk-cache
     scripts:
       - name: Install Bazel
@@ -20,7 +20,7 @@ workflows:
           ./bazel version
           mkdir -p $BAZEL_DISK_CACHE
 
-      - name: Init submodules (ignore errors)
+      - name: Init submodules
         script: git submodule update --init --recursive || true
 
       - name: Generate Xcode project
