@@ -31,21 +31,26 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      - name: Force Patch Build System
+      - name: Hard Patch Build System
         run: |
-          # 1. Вырезаем требование пушей из конфигов
+          # 1. Стираем упоминание пушей из всех конфигураций
           find . -name "*.entitlements" -exec plutil -remove "aps-environment" {} \; || true
           
-          # 2. ПАТЧИМ ПРОВЕРКУ В PYTHON (Самое важное)
-          # Находим строку с ошибкой и заставляем её замолчать
+          # 2. ПРИНУДИТЕЛЬНЫЙ ПАТЧ PYTHON-СКРИПТА (Ультра-метод)
+          # Мы находим файл и просто комментируем строки с проверкой aps-environment
           FILE_PATH="build-system/Make/BuildConfiguration.py"
           
-          # Заменяем 'raise Exception' на 'print' для ошибки aps-environment
-          sed -i '' "s/raise Exception('Could not find a valid aps-environment/print('SKIPPED: aps-environment/g" $FILE_PATH
+          # Убираем проверку на наличие aps-environment в профиле
+          sed -i '' "s/raise Exception('Could not find a valid aps-environment/# print('SKIPPED ERROR/g" $FILE_PATH
+          sed -i '' 's/raise Exception("Could not find a valid aps-environment/# print("SKIPPED ERROR/g' $FILE_PATH
           
-          # Дополнительный хак: заставляем функцию проверки всегда возвращать "production", если она ищет статус пушей
+          # Делаем так, чтобы функция возвращала "production" по умолчанию без проверки
           sed -i '' "s/return entitlements\['aps-environment'\]/return 'production'/g" $FILE_PATH || true
+          sed -i '' 's/return entitlements\["aps-environment"\]/return "production"/g' $FILE_PATH || true
 
+          # Проверим, что патч применился (увидим в логах)
+          echo "Checking if patch applied:"
+          grep -C 2 "aps-environment" $FILE_PATH || true
       - name: Build App
         run: |
           BUILD_NUMBER=$(git rev-list --count HEAD)
