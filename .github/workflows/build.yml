@@ -46,6 +46,7 @@ jobs:
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
             --buildNumber=$BUILD_NUMBER
+            --disablePushNotifications
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
