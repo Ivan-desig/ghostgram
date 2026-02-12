@@ -1,45 +1,40 @@
 workflows:
   ghostgram-ios-build:
     name: Ghostgram iOS Build
-    instance_type: mac_mini_m1          # быстрее всего на M1
+    instance_type: mac_mini_m1
     max_build_duration: 120
-    triggering:
-      events:
-        - push
-        - pull_request
     environment:
       xcode: latest
       groups:
-        - apple_signing                   # здесь потом настроишь сертификат
+        - apple_signing
       vars:
-        CONFIG_PATH: build-system/template_minimal_development_configuration.json  # основной путь к конфигу
+        CONFIG_PATH: build-system/template_minimal_development_configuration.json
+        BAZEL_VERSION: 6.5.0
         BAZEL_CACHE_DIR: $HOME/telegram-bazel-cache
     scripts:
-      - name: Install Bazel (if needed)
+      - name: Install Bazel
         script: |
-          if ! command -v bazel &> /dev/null; then
-            curl -LO https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-darwin-arm64
-            chmod +x bazel-6.5.0-darwin-arm64
-            mv bazel-6.5.0-darwin-arm64 bazel
-            ./bazel version
-          fi
+          curl -LO https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-darwin-arm64
+          chmod +x bazel-$BAZEL_VERSION-darwin-arm64
+          mv bazel-$BAZEL_VERSION-darwin-arm64 bazel
+          ./bazel version
+          echo "Bazel installed"
 
       - name: Init submodules (ignore errors)
         script: git submodule update --init --recursive || true
 
       - name: Generate Xcode project
-        script: |
-          python3 build-system/Make/Make.py generateProject --configurationPath=$CONFIG_PATH || true
+        script: python3 build-system/Make/Make.py generateProject --configurationPath=$CONFIG_PATH || true
 
       - name: Build with Bazel
         script: |
-          bazel build //Telegram:Telegram \
+          ./bazel build //Telegram:Telegram \
             --compilation_mode=opt \
             --apple_platform_type=ios \
             --cache_dir=$BAZEL_CACHE_DIR
 
     artifacts:
-      - bazel-bin/Telegram/Telegram.ipa     # основной путь к IPA
+      - bazel-bin/Telegram/Telegram.ipa
       - bazel-bin/**/*
       - build/**/*
-      - "**/*.ipa"                          # на всякий случай
+      - "**/*.ipa"
