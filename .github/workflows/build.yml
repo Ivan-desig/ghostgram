@@ -31,11 +31,12 @@ jobs:
 
       - name: Insert API keys
         run: |
-          sed -i '' "s/\#define API_ID.*/\#define API_ID ${{ secrets.API_ID }}/" Telegram/Telegram-Bridging-Header.h
-          sed -i '' "s/\#define API_HASH.*/\#define API_HASH \"${{ secrets.API_HASH }}\"/" Telegram/Telegram-Bridging-Header.h
+          cd Telegram
+          sed -i '' "s/#define API_ID.*/#define API_ID ${{ secrets.API_ID }}/ " Telegram-Bridging-Header.h
+          sed -i '' "s/#define API_HASH.*/#define API_HASH \"${{ secrets.API_HASH }}\"/ " Telegram-Bridging-Header.h
 
       - name: Generate Xcode project
-        run: python3 build-system/Make/Make.py generateProject --configurationPath=build-system/config.json || true
+        run: cd .. && python3 build-system/Make/Make.py generateProject --configurationPath=build-system/config.json || true
 
       - name: Setup signing
         run: |
